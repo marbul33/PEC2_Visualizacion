@@ -1,64 +1,64 @@
 Pais,Anio,Renovable_pct
-Dinamarca,2000,16.7
-Dinamarca,2004,27.1
-Dinamarca,2008,28.9
-Dinamarca,2012,48.3
-Dinamarca,2016,60.5
-Dinamarca,2020,81.6
-Dinamarca,2024,88.4
-Suecia,2000,55.4
-Suecia,2004,46.1
-Suecia,2008,55.6
-Suecia,2012,59.8
-Suecia,2016,57.1
-Suecia,2020,68.5
-Suecia,2024,71.2
-Portugal,2000,30.5
-Portugal,2004,24.5
-Portugal,2008,32.9
-Portugal,2012,45.2
-Portugal,2016,55.5
-Portugal,2020,59.6
-Portugal,2024,68.1
-España,2000,15.6
-España,2004,18.2
-España,2008,23.7
-España,2012,33.5
-España,2016,38.6
-España,2020,44.0
-España,2024,56.8
-Alemania,2000,6.6
-Alemania,2004,9.5
-Alemania,2008,15.1
-Alemania,2012,23.5
-Alemania,2016,29.8
-Alemania,2020,44.9
-Alemania,2024,57.5
-Países Bajos,2000,3.9
-Países Bajos,2004,6.7
-Países Bajos,2008,8.9
-Países Bajos,2012,12.1
-Países Bajos,2016,12.5
-Países Bajos,2020,26.5
-Países Bajos,2024,51.4
-Italia,2000,18.8
-Italia,2004,17.9
-Italia,2008,21.8
-Italia,2012,31.0
-Italia,2016,37.4
-Italia,2020,41.7
-Italia,2024,45.2
-Francia,2000,15.1
-Francia,2004,13.5
-Francia,2008,14.4
-Francia,2012,16.5
-Francia,2016,19.6
-Francia,2020,24.8
-Francia,2024,27.9
-Polonia,2000,1.7
-Polonia,2004,2.1
-Polonia,2008,4.4
-Polonia,2012,10.7
-Polonia,2016,13.8
-Polonia,2020,16.3
-Polonia,2024,29.1
+Alemania,2000,6.2237453
+Alemania,2004,9.509515
+Alemania,2008,14.925115
+Alemania,2012,23.136122
+Alemania,2016,29.481544
+Alemania,2020,44.374065
+Alemania,2024,58.64231
+Dinamarca,2000,15.536961
+Dinamarca,2004,23.682901
+Dinamarca,2008,27.686405
+Dinamarca,2012,48.544327
+Dinamarca,2016,60.49342
+Dinamarca,2020,82.050385
+Dinamarca,2024,89.18996
+España,2000,15.611987
+España,2004,18.12299
+España,2008,20.061977
+España,2012,29.586664
+España,2016,38.65164
+España,2020,43.854782
+España,2024,57.336086
+Francia,2000,12.736593
+Francia,2004,11.022427
+Francia,2008,12.757065
+Francia,2012,15.019909
+Francia,2016,17.715267
+Francia,2020,23.713608
+Francia,2024,27.176117
+Italia,2000,18.844929
+Italia,2004,18.34122
+Italia,2008,18.666752
+Italia,2012,31.234547
+Italia,2016,37.772335
+Italia,2020,42.231133
+Italia,2024,50.17193
+Países Bajos,2000,3.3727005
+Países Bajos,2004,5.3095574
+Países Bajos,2008,8.97279
+Países Bajos,2012,12.193214
+Países Bajos,2016,12.969462
+Países Bajos,2020,26.836668
+Países Bajos,2024,50.7398
+Polonia,2000,1.6273223
+Polonia,2004,2.0978105
+Polonia,2008,4.2783175
+Polonia,2012,10.453306
+Polonia,2016,13.740964
+Polonia,2020,17.96373
+Polonia,2024,31.146875
+Portugal,2000,29.784773
+Portugal,2004,27.551477
+Portugal,2008,32.28937
+Portugal,2012,42.627644
+Portugal,2016,54.699406
+Portugal,2020,58.591167
+Portugal,2024,85.19145
+Suecia,2000,57.247128
+Suecia,2004,44.985485
+Suecia,2008,54.309544
+Suecia,2012,59.066326
+Suecia,2016,57.17493
+Suecia,2020,68.4699
+Suecia,2024,69.35812

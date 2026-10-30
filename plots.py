@@ -1,3 +1,5 @@
+import io
+import requests
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -48,7 +50,8 @@ def guardar_html_editorial(fig, filename, titulo_pestana, url_activa):
         {plot_html}
     </main>
     <footer>
-        <span>Datos abiertos descargables en el repositorio: <a href="datos_small_multiple.csv">CSV 1</a> · <a href="datos_slope_chart.csv">CSV 2</a> · <a href="datos_connected_scatterplot.csv">CSV 3</a></span>
+        <span>PEC 2 · Visualización de Datos — <strong>Marius Bulat Simon</strong></span>
+        <span>Datos abiertos: <a href="datos_small_multiple.csv">CSV 1</a> · <a href="datos_slope_chart.csv">CSV 2</a> · <a href="datos_connected_scatterplot.csv">CSV 3</a></span>
     </footer>
 </body>
 </html>"""
@@ -56,31 +59,77 @@ def guardar_html_editorial(fig, filename, titulo_pestana, url_activa):
         f.write(html_template)
 
 
+HEADERS = {"User-Agent": "PEC2-VisualizacionDatos/1.0 (fetch script)"}
+
+
 # ==============================================================================
-# 1. TÉCNICA GRUPO I: SMALL MULTIPLE (Energía Renovable en la UE 2000-2024)
+# 1. TÉCNICA GRUPO I: SMALL MULTIPLE
+# Fuente: Our World in Data / Ember Climate — "Share of electricity generated
+# by renewables" (share-electricity-renewables.csv)
 # ==============================================================================
-years_sm = [2000, 2004, 2008, 2012, 2016, 2020, 2024]
-data_sm = {
-    "Dinamarca": [16.7, 27.1, 28.9, 48.3, 60.5, 81.6, 88.4],
-    "Suecia": [55.4, 46.1, 55.6, 59.8, 57.1, 68.5, 71.2],
-    "Portugal": [30.5, 24.5, 32.9, 45.2, 55.5, 59.6, 68.1],
-    "España": [15.6, 18.2, 23.7, 33.5, 38.6, 44.0, 56.8],
-    "Alemania": [6.6, 9.5, 15.1, 23.5, 29.8, 44.9, 57.5],
-    "Países Bajos": [3.9, 6.7, 8.9, 12.1, 12.5, 26.5, 51.4],
-    "Italia": [18.8, 17.9, 21.8, 31.0, 37.4, 41.7, 45.2],
-    "Francia": [15.1, 13.5, 14.4, 16.5, 19.6, 24.8, 27.9],
-    "Polonia": [1.7, 2.1, 4.4, 10.7, 13.8, 16.3, 29.1],
+OWID_URL = (
+    "https://ourworldindata.org/grapher/share-electricity-renewables.csv"
+    "?v=1&csvType=full&useColumnShortNames=false"
+)
+
+paises_sm = [
+    "Dinamarca",
+    "Suecia",
+    "Portugal",
+    "España",
+    "Alemania",
+    "Países Bajos",
+    "Italia",
+    "Francia",
+    "Polonia",
+]
+
+# Mapa nombre en español (usado en el resto del script) -> Entity en OWID (inglés)
+mapa_paises_owid = {
+    "Dinamarca": "Denmark",
+    "Suecia": "Sweden",
+    "Portugal": "Portugal",
+    "España": "Spain",
+    "Alemania": "Germany",
+    "Países Bajos": "Netherlands",
+    "Italia": "Italy",
+    "Francia": "France",
+    "Polonia": "Poland",
 }
 
-# Guardar CSV limpio
-rows_sm = [
-    {"Pais": p, "Anio": y, "Renovable_pct": v}
-    for p, vals in data_sm.items()
-    for y, v in zip(years_sm, vals)
-]
-pd.DataFrame(rows_sm).to_csv("datos_small_multiple.csv", index=False)
+years_sm = [2000, 2004, 2008, 2012, 2016, 2020, 2024]
 
-paises_sm = list(data_sm.keys())
+resp_owid = requests.get(OWID_URL, headers=HEADERS, timeout=60)
+resp_owid.raise_for_status()
+df_owid_raw = pd.read_csv(io.StringIO(resp_owid.text))
+
+# Las columnas estándar de un CSV "grapher" de OWID son: Entity, Code, Year, <valor>
+# La columna de valor puede llamarse "Renewables - % electricity" o similar según
+# la versión del indicador, así que la localizamos dinámicamente.
+cols_fijas = {"Entity", "Code", "Year"}
+col_valor_owid = [c for c in df_owid_raw.columns if c not in cols_fijas][0]
+df_owid_raw = df_owid_raw.rename(columns={col_valor_owid: "Renovable_pct"})
+
+df_owid_raw = df_owid_raw[df_owid_raw["Entity"].isin(mapa_paises_owid.values())]
+df_owid_raw = df_owid_raw[df_owid_raw["Year"].isin(years_sm)]
+
+mapa_inverso = {v: k for k, v in mapa_paises_owid.items()}
+df_owid_raw["Pais"] = df_owid_raw["Entity"].map(mapa_inverso)
+
+rows_sm = (
+    df_owid_raw[["Pais", "Year", "Renovable_pct"]]
+    .rename(columns={"Year": "Anio"})
+    .sort_values(["Pais", "Anio"])
+)
+rows_sm.to_csv("datos_small_multiple.csv", index=False)
+
+# Reconstruimos data_sm en el mismo formato {pais: [valores por year]} que usaba
+# el resto del código, para no tocar la lógica de las gráficas.
+data_sm = {}
+for pais in paises_sm:
+    serie = rows_sm[rows_sm["Pais"] == pais].set_index("Anio")["Renovable_pct"]
+    data_sm[pais] = [round(float(serie.get(y, float("nan"))), 1) for y in years_sm]
+
 fig_sm = make_subplots(
     rows=3,
     cols=3,
@@ -93,7 +142,6 @@ fig_sm = make_subplots(
     horizontal_spacing=0.06,
 )
 
-# Color jerárquico: Azul intenso para los de mayor aceleración, gris azulado para el resto
 colores_sm = {
     "Dinamarca": "#0284c7",
     "España": "#0284c7",
@@ -109,7 +157,6 @@ colores_sm = {
 for idx, pais_foco in enumerate(paises_sm):
     r, c = (idx // 3) + 1, (idx % 3) + 1
 
-    # 1) Líneas de fondo (los otros 8 países en gris claro para dar contexto visual inmediato)
     for pais_bg, vals_bg in data_sm.items():
         if pais_bg != pais_foco:
             fig_sm.add_trace(
@@ -125,7 +172,6 @@ for idx, pais_foco in enumerate(paises_sm):
                 col=c,
             )
 
-    # 2) Serie protagonista del panel con área sombreada suave y etiquetas en extremos
     vals_foco = data_sm[pais_foco]
     color_f = colores_sm[pais_foco]
     fig_sm.add_trace(
@@ -183,50 +229,78 @@ guardar_html_editorial(fig_sm, "small-multiple.html", "Small Multiple", "sm")
 
 
 # ==============================================================================
-# 2. TÉCNICA GRUPO II: SLOPE CHART (Teletrabajo en Europa: 2019 vs 2024)
+# 2. TÉCNICA GRUPO II: SLOPE CHART
+# Fuente: Eurostat, tabla "lfsa_ehomp" — Employed persons working from home
+# as a percentage of the total employment, by sex, age and professional status
 # ==============================================================================
-df_slope = pd.DataFrame(
-    [
-        {
-            "Pais": "Países Bajos",
-            "y2019": 14.1,
-            "y2024": 52.3,
-            "Grupo": "Salto estructural (+38,2 pp)",
-        },
-        {
-            "Pais": "Irlanda",
-            "y2019": 7.0,
-            "y2024": 37.8,
-            "Grupo": "Salto estructural (+30,8 pp)",
-        },
-        {
-            "Pais": "Finlandia",
-            "y2019": 14.5,
-            "y2024": 39.2,
-            "Grupo": "Consolidación alta",
-        },
-        {"Pais": "Suecia", "y2019": 5.9, "y2024": 34.1, "Grupo": "Consolidación alta"},
-        {"Pais": "Alemania", "y2019": 5.2, "y2024": 23.6, "Grupo": "Crecimiento medio"},
-        {"Pais": "Francia", "y2019": 7.0, "y2024": 21.8, "Grupo": "Crecimiento medio"},
-        {
-            "Pais": "España",
-            "y2019": 4.8,
-            "y2024": 15.1,
-            "Grupo": "Rezago relativo (+10,3 pp)",
-        },
-        {
-            "Pais": "Italia",
-            "y2019": 3.6,
-            "y2024": 12.2,
-            "Grupo": "Rezago relativo (+8,6 pp)",
-        },
-    ]
+EUROSTAT_URL = (
+    "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/lfsa_ehomp/"
+    "?format=SDMX-CSV&compressed=false"
 )
+
+mapa_paises_eurostat = {
+    "Países Bajos": "NL",
+    "Irlanda": "IE",
+    "Finlandia": "FI",
+    "Suecia": "SE",
+    "Alemania": "DE",
+    "Francia": "FR",
+    "España": "ES",
+    "Italia": "IT",
+}
+
+resp_eurostat = requests.get(EUROSTAT_URL, headers=HEADERS, timeout=120)
+resp_eurostat.raise_for_status()
+df_eurostat_raw = pd.read_csv(io.StringIO(resp_eurostat.text))
+df_eurostat_raw.columns = [c.strip().lower() for c in df_eurostat_raw.columns]
+
+# Filtramos la serie de interés: total empleo, 15-74 años, empleados, % del total.
+# NOTA: la dimensión "frequenc" distingue trabajo habitual (USU), a veces (SMT)
+# y nunca (NVR). El enunciado pide "habitualmente o a veces", así que sumamos
+# USU + SMT por país y año. Revisar estos códigos contra la documentación del
+# dataset si Eurostat los hubiera cambiado, ya que no se pudo verificar por
+# ejecución en este entorno (sin acceso de red a ec.europa.eu).
+filtro_base = (
+    (df_eurostat_raw["sex"] == "T")
+    & (df_eurostat_raw["age"] == "Y15-74")
+    & (df_eurostat_raw["wstatus"] == "EMP")
+    & (df_eurostat_raw["unit"] == "PC")
+    & (df_eurostat_raw["geo"].isin(mapa_paises_eurostat.values()))
+    & (df_eurostat_raw["time_period"].isin([2019, 2024]))
+)
+df_eurostat_f = df_eurostat_raw[filtro_base].copy()
+if "frequenc" in df_eurostat_f.columns:
+    df_eurostat_f = df_eurostat_f[df_eurostat_f["frequenc"].isin(["USU", "SMT"])]
+
+df_eurostat_f = df_eurostat_f.rename(
+    columns={"time_period": "Anio", "obs_value": "valor"}
+)
+tabla_wfh = df_eurostat_f.groupby(["geo", "Anio"])["valor"].sum().reset_index()
+
+mapa_inverso_eurostat = {v: k for k, v in mapa_paises_eurostat.items()}
+tabla_wfh["Pais"] = tabla_wfh["geo"].map(mapa_inverso_eurostat)
+
+filas_slope = []
+for pais in mapa_paises_eurostat:
+    sub = tabla_wfh[tabla_wfh["Pais"] == pais].set_index("Anio")["valor"]
+    y2019 = round(float(sub.get(2019, float("nan"))), 1)
+    y2024 = round(float(sub.get(2024, float("nan"))), 1)
+    diff = y2024 - y2019
+    if diff >= 25:
+        grupo = f"Salto estructural (+{diff:.1f} pp)".replace(".", ",")
+    elif diff >= 15:
+        grupo = "Consolidación alta"
+    elif diff >= 12:
+        grupo = "Crecimiento medio"
+    else:
+        grupo = f"Rezago relativo (+{diff:.1f} pp)".replace(".", ",")
+    filas_slope.append({"Pais": pais, "y2019": y2019, "y2024": y2024, "Grupo": grupo})
+
+df_slope = pd.DataFrame(filas_slope)
 df_slope.to_csv("datos_slope_chart.csv", index=False)
 
 fig_sc = go.Figure()
 
-# Líneas verticales de los dos estados temporales (2019 y 2024)
 for x_pos, label_anio in [
     (0, "<b>2019</b> (Pre-pandemia)"),
     (1, "<b>2024</b> (Nuevo equilibrio)"),
@@ -247,16 +321,25 @@ for x_pos, label_anio in [
         font=dict(size=14, color="#0f172a"),
     )
 
-# Pequeños ajustes de posición Y en etiquetas izquierdas/derechas para evitar solapamiento (overplotting)
+# Offsets calculados para evitar colisiones de etiquetas en 2019 y 2024
 y_offset_2019 = {
-    "Países Bajos": -0.8,
-    "Finlandia": 0.8,
-    "Irlanda": 0.6,
-    "Francia": -0.6,
-    "Suecia": 0.3,
-    "Alemania": -0.4,
-    "España": 0.2,
-    "Italia": -0.3,
+    "Finlandia": 1.5,
+    "Países Bajos": -1.8,
+    "Irlanda": 2.5,
+    "Francia": 1,
+    "Suecia": -0.8,
+    "Alemania": -2.2,
+    "España": -3.8,
+    "Italia": -5.2,
+}
+
+y_offset_2024 = {
+    "Finlandia": 1.4,
+    "Irlanda": -1.4,
+    "Alemania": 1.0,
+    "Francia": -1.0,
+    "España": 0.8,
+    "Italia": -0.8,
 }
 
 for _, row in df_slope.iterrows():
@@ -283,7 +366,6 @@ for _, row in df_slope.iterrows():
         )
     )
 
-    # Etiquetas directas a la izquierda (2019) y a la derecha (2024)
     peso_txt = "<b>" if (es_lider or es_rezagado) else ""
     cierre_txt = "</b>" if (es_lider or es_rezagado) else ""
     color_txt = "#0f172a" if (es_lider or es_rezagado) else "#64748b"
@@ -298,14 +380,13 @@ for _, row in df_slope.iterrows():
     )
     fig_sc.add_annotation(
         x=1.03,
-        y=row["y2024"],
+        y=row["y2024"] + y_offset_2024.get(pais, 0),
         text=f"{peso_txt}{pais}: {row['y2024']}% (+{diff:.1f} pp){cierre_txt}",
         xanchor="left",
         showarrow=False,
         font=dict(size=12, color=color_txt),
     )
 
-# Anotación explicativa central
 fig_sc.add_annotation(
     x=0.5,
     y=43,
@@ -324,14 +405,14 @@ fig_sc.add_annotation(
 fig_sc.update_layout(
     title=dict(
         text="<b>El teletrabajo divide Europa en dos velocidades tras la pandemia (2019 vs. 2024)</b><br>"
-        "<span style='font-size:14px;color:#475569'>Porcentaje de ocupados que trabajan habitualmente o a veces desde casa (Eurostat). El ángulo refleja el salto estructural.</span>",
+        "<span style='font-size:14px;color:#475569'>Porcentaje de ocupados que trabajan habitualmente o a veces desde casa (Eurostat, lfsa_ehomp). El ángulo refleja el salto estructural.</span>",
         x=0.0,
         y=0.97,
     ),
     height=680,
     margin=dict(t=95, b=40, l=180, r=220),
     xaxis=dict(range=[-0.35, 1.4], visible=False),
-    yaxis=dict(range=[0, 62], visible=False),
+    yaxis=dict(range=[-3, 62], visible=False),
     plot_bgcolor="white",
     paper_bgcolor="white",
     font=dict(family="Segoe UI, Roboto, sans-serif"),
@@ -341,120 +422,50 @@ guardar_html_editorial(fig_sc, "slope-chart.html", "Slope Chart", "sc")
 
 
 # ==============================================================================
-# 3. TÉCNICA GRUPO III: CONNECTED SCATTERPLOT (Curva de Phillips España 2007-2024)
+# 3. TÉCNICA GRUPO III: CONNECTED SCATTERPLOT
+# Fuente: World Bank Open Data — SL.UEM.TOTL.ZS (desempleo, % de la fuerza
+# laboral) y FP.CPI.TOTL.ZG (inflación de precios al consumidor, % anual)
 # ==============================================================================
-df_cs = pd.DataFrame(
-    [
-        {
-            "Anio": 2007,
-            "Paro": 8.2,
-            "Inflacion": 2.8,
-            "Etapa": "1. Crisis Financiera y Deuda (2007–2013)",
-        },
-        {
-            "Anio": 2008,
-            "Paro": 11.3,
-            "Inflacion": 4.1,
-            "Etapa": "1. Crisis Financiera y Deuda (2007–2013)",
-        },
-        {
-            "Anio": 2009,
-            "Paro": 17.9,
-            "Inflacion": -0.3,
-            "Etapa": "1. Crisis Financiera y Deuda (2007–2013)",
-        },
-        {
-            "Anio": 2010,
-            "Paro": 19.9,
-            "Inflacion": 1.8,
-            "Etapa": "1. Crisis Financiera y Deuda (2007–2013)",
-        },
-        {
-            "Anio": 2011,
-            "Paro": 21.4,
-            "Inflacion": 3.2,
-            "Etapa": "1. Crisis Financiera y Deuda (2007–2013)",
-        },
-        {
-            "Anio": 2012,
-            "Paro": 24.8,
-            "Inflacion": 2.4,
-            "Etapa": "1. Crisis Financiera y Deuda (2007–2013)",
-        },
-        {
-            "Anio": 2013,
-            "Paro": 26.1,
-            "Inflacion": 1.4,
-            "Etapa": "1. Crisis Financiera y Deuda (2007–2013)",
-        },
-        {
-            "Anio": 2014,
-            "Paro": 24.4,
-            "Inflacion": -0.2,
-            "Etapa": "2. Recuperación y Desinflación (2014–2019)",
-        },
-        {
-            "Anio": 2015,
-            "Paro": 22.1,
-            "Inflacion": -0.5,
-            "Etapa": "2. Recuperación y Desinflación (2014–2019)",
-        },
-        {
-            "Anio": 2016,
-            "Paro": 19.6,
-            "Inflacion": -0.2,
-            "Etapa": "2. Recuperación y Desinflación (2014–2019)",
-        },
-        {
-            "Anio": 2017,
-            "Paro": 17.2,
-            "Inflacion": 2.0,
-            "Etapa": "2. Recuperación y Desinflación (2014–2019)",
-        },
-        {
-            "Anio": 2018,
-            "Paro": 15.3,
-            "Inflacion": 1.7,
-            "Etapa": "2. Recuperación y Desinflación (2014–2019)",
-        },
-        {
-            "Anio": 2019,
-            "Paro": 14.1,
-            "Inflacion": 0.7,
-            "Etapa": "2. Recuperación y Desinflación (2014–2019)",
-        },
-        {
-            "Anio": 2020,
-            "Paro": 15.5,
-            "Inflacion": -0.3,
-            "Etapa": "3. Pandemia y Shock Inflacionario (2020–2024)",
-        },
-        {
-            "Anio": 2021,
-            "Paro": 14.8,
-            "Inflacion": 3.1,
-            "Etapa": "3. Pandemia y Shock Inflacionario (2020–2024)",
-        },
-        {
-            "Anio": 2022,
-            "Paro": 12.9,
-            "Inflacion": 8.4,
-            "Etapa": "3. Pandemia y Shock Inflacionario (2020–2024)",
-        },
-        {
-            "Anio": 2023,
-            "Paro": 12.2,
-            "Inflacion": 3.5,
-            "Etapa": "3. Pandemia y Shock Inflacionario (2020–2024)",
-        },
-        {
-            "Anio": 2024,
-            "Paro": 11.4,
-            "Inflacion": 2.8,
-            "Etapa": "3. Pandemia y Shock Inflacionario (2020–2024)",
-        },
-    ]
-)
+def descargar_indicador_wb(indicador, pais_iso2="ES", year_ini=2007, year_fin=2024):
+    url = (
+        f"https://api.worldbank.org/v2/country/{pais_iso2}/indicator/{indicador}"
+        f"?format=json&date={year_ini}:{year_fin}&per_page=1000"
+    )
+    r = requests.get(url, headers=HEADERS, timeout=60)
+    r.raise_for_status()
+    payload = r.json()
+    registros = payload[1] if len(payload) > 1 and payload[1] else []
+    df = pd.DataFrame(
+        [{"Anio": int(reg["date"]), "valor": reg["value"]} for reg in registros]
+    )
+    return df.dropna(subset=["valor"]).sort_values("Anio")
+
+
+df_paro = descargar_indicador_wb("SL.UEM.TOTL.ZS")
+df_inflacion = descargar_indicador_wb("FP.CPI.TOTL.ZG")
+
+df_cs = pd.merge(
+    df_paro.rename(columns={"valor": "Paro"}),
+    df_inflacion.rename(columns={"valor": "Inflacion"}),
+    on="Anio",
+    how="inner",
+).sort_values("Anio")
+
+df_cs["Paro"] = df_cs["Paro"].round(1)
+df_cs["Inflacion"] = df_cs["Inflacion"].round(1)
+
+
+def etiquetar_etapa(anio):
+    if anio <= 2013:
+        return "1. Crisis Financiera y Deuda (2007–2013)"
+    elif anio <= 2019:
+        return "2. Recuperación y Desinflación (2014–2019)"
+    else:
+        return "3. Pandemia y Shock Inflacionario (2020–2024)"
+
+
+df_cs["Etapa"] = df_cs["Anio"].apply(etiquetar_etapa)
+df_cs = df_cs[(df_cs["Anio"] >= 2007) & (df_cs["Anio"] <= 2024)].reset_index(drop=True)
 df_cs.to_csv("datos_connected_scatterplot.csv", index=False)
 
 fig_cs = go.Figure()
@@ -467,18 +478,54 @@ fig_cs.add_hline(
     line_color="#94a3b8",
     line_width=1.5,
     annotation_text="Objetivo BCE (2%)",
-    annotation_position="bottom right",
+    annotation_position="top left",
     annotation_font=dict(size=11, color="#64748b"),
 )
 
-# Trazado por etapas con flechas direccionales para guiar la lectura cronológica
-segmentos = [
-    (df_cs.iloc[0:7], "#dc2626", "1. Gran Recesión (2007–2013)"),
-    (df_cs.iloc[6:13], "#0284c7", "2. Recuperación (2014–2019)"),
-    (df_cs.iloc[12:18], "#7c3aed", "3. Shock Pandemia y Energía (2020–2024)"),
+segmentos_def = [
+    (
+        "1. Crisis Financiera y Deuda (2007–2013)",
+        "#dc2626",
+        "1. Gran Recesión (2007–2013)",
+    ),
+    (
+        "2. Recuperación y Desinflación (2014–2019)",
+        "#0284c7",
+        "2. Recuperación (2014–2019)",
+    ),
+    (
+        "3. Pandemia y Shock Inflacionario (2020–2024)",
+        "#7c3aed",
+        "3. Shock Pandemia y Energía (2020–2024)",
+    ),
 ]
 
-for sub_df, color_seg, nombre_seg in segmentos:
+# Para que las líneas conecten entre etapas (igual que en el original, que
+# solapaba el último año de cada tramo con el primero del siguiente),
+# añadimos el punto de empalme de la etapa previa cuando exista.
+etapas_orden = [e[0] for e in segmentos_def]
+for i, (etapa, color_seg, nombre_seg) in enumerate(segmentos_def):
+    sub_df = df_cs[df_cs["Etapa"] == etapa].copy()
+    if i > 0:
+        anterior = df_cs[df_cs["Etapa"] == etapas_orden[i - 1]]
+        if not anterior.empty:
+            sub_df = pd.concat([anterior.iloc[[-1]], sub_df]).reset_index(drop=True)
+
+    anios_a_etiquetar = set(sub_df["Anio"]) & {
+        2007,
+        2008,
+        2009,
+        2011,
+        2013,
+        2015,
+        2017,
+        2019,
+        2020,
+        2021,
+        2022,
+        2024,
+    }
+
     fig_cs.add_trace(
         go.Scatter(
             x=sub_df["Paro"],
@@ -486,26 +533,7 @@ for sub_df, color_seg, nombre_seg in segmentos:
             mode="lines+markers+text",
             line=dict(color=color_seg, width=3.2, shape="spline", smoothing=0.35),
             marker=dict(symbol="arrow", size=12, angleref="previous", color=color_seg),
-            text=[
-                str(a)
-                if a
-                in [
-                    2007,
-                    2008,
-                    2009,
-                    2011,
-                    2013,
-                    2015,
-                    2017,
-                    2019,
-                    2020,
-                    2021,
-                    2022,
-                    2024,
-                ]
-                else ""
-                for a in sub_df["Anio"]
-            ],
+            text=[str(a) if a in anios_a_etiquetar else "" for a in sub_df["Anio"]],
             textposition="top center",
             textfont=dict(size=11.5, color=color_seg),
             name=nombre_seg,
@@ -514,24 +542,27 @@ for sub_df, color_seg, nombre_seg in segmentos:
         )
     )
 
-# Anotaciones de los 3 hitos macroeconómicos clave
+max_paro_row = df_cs.loc[df_cs["Paro"].idxmax()]
+max_inflacion_row = df_cs.loc[df_cs["Inflacion"].idxmax()]
+ultimo_row = df_cs.iloc[-1]
+
 fig_cs.add_annotation(
-    x=26.1,
-    y=1.4,
-    text="<b>2013: Máximo histórico de paro (26,1%)</b><br>Desplazamiento horizontal tras estallar la burbuja",
+    x=max_paro_row["Paro"],
+    y=max_paro_row["Inflacion"],
+    text=f"<b>{int(max_paro_row['Anio'])}: Máximo histórico de paro ({max_paro_row['Paro']}%)</b><br>Desplazamiento horizontal tras estallar la burbuja",
     showarrow=True,
     arrowhead=2,
-    ax=-110,
-    ay=-40,
+    ax=-90,
+    ay=-65,
     bgcolor="#fef2f2",
     bordercolor="#fca5a5",
     borderpad=5,
     font=dict(size=11),
 )
 fig_cs.add_annotation(
-    x=12.9,
-    y=8.4,
-    text="<b>2022: Pico inflacionario (8,4%)</b><br>Shock energético mientras el paro sigue bajando",
+    x=max_inflacion_row["Paro"],
+    y=max_inflacion_row["Inflacion"],
+    text=f"<b>{int(max_inflacion_row['Anio'])}: Pico inflacionario ({max_inflacion_row['Inflacion']}%)</b><br>Shock energético mientras el paro sigue bajando",
     showarrow=True,
     arrowhead=2,
     ax=115,
@@ -542,13 +573,13 @@ fig_cs.add_annotation(
     font=dict(size=11),
 )
 fig_cs.add_annotation(
-    x=11.4,
-    y=2.8,
-    text="<b>2024: Aterrizaje suave</b><br>(11,4% paro | 2,8% IPC)",
+    x=ultimo_row["Paro"],
+    y=ultimo_row["Inflacion"],
+    text=f"<b>{int(ultimo_row['Anio'])}: Aterrizaje suave</b><br>({ultimo_row['Paro']}% paro | {ultimo_row['Inflacion']}% IPC)",
     showarrow=True,
     arrowhead=2,
-    ax=-90,
-    ay=28,
+    ax=45,
+    ay=-42,
     bgcolor="#f8fafc",
     bordercolor="#cbd5e1",
     borderpad=5,
@@ -558,7 +589,7 @@ fig_cs.add_annotation(
 fig_cs.update_layout(
     title=dict(
         text="<b>Los tres ciclos de la Curva de Phillips en España (2007–2024)</b><br>"
-        "<span style='font-size:14px;color:#475569'>Trayectoria conjunta de la Tasa de Desempleo (eje X) y la Inflación IPC (eje Y). Las flechas indican el avance temporal.</span>",
+        "<span style='font-size:14px;color:#475569'>Trayectoria conjunta de la Tasa de Desempleo (eje X) y la Inflación IPC (eje Y). Fuente: World Bank (SL.UEM.TOTL.ZS, FP.CPI.TOTL.ZG). Las flechas indican el avance temporal.</span>",
         x=0.0,
         y=0.97,
     ),
@@ -588,7 +619,7 @@ guardar_html_editorial(
 
 
 # ==============================================================================
-# 4. PORTADA INDEX.HTML (PARA MOSTRAR EN LOS PRIMEROS 30 SEGUNDOS DEL VÍDEO)
+# 4. PORTADA INDEX.HTML
 # ==============================================================================
 index_html = """<!DOCTYPE html>
 <html lang="es">
@@ -642,3 +673,6 @@ with open("index.html", "w", encoding="utf-8") as f:
     f.write(index_html)
 
 print("¡Listo! Se han generado index.html, los 3 gráficos HTML y los 3 archivos CSV.")
+print(f"Fuente 1 (OWID): {OWID_URL}")
+print(f"Fuente 2 (Eurostat lfsa_ehomp): {EUROSTAT_URL}")
+print("Fuente 3 (World Bank): SL.UEM.TOTL.ZS y FP.CPI.TOTL.ZG, country=ES")
