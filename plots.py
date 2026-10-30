@@ -6,7 +6,7 @@ from plotly.subplots import make_subplots
 
 
 # ==============================================================================
-# PLANTILLA HTML EDITORIAL (ESTILO THE ECONOMIST / OUR WORLD IN DATA)
+# PLANTILLA HTML EDITORIAL
 # ==============================================================================
 def guardar_html_editorial(fig, filename, titulo_pestana, url_activa):
     plot_html = fig.to_html(
@@ -64,8 +64,6 @@ HEADERS = {"User-Agent": "PEC2-VisualizacionDatos/1.0 (fetch script)"}
 
 # ==============================================================================
 # 1. TÉCNICA GRUPO I: SMALL MULTIPLE
-# Fuente: Our World in Data / Ember Climate — "Share of electricity generated
-# by renewables" (share-electricity-renewables.csv)
 # ==============================================================================
 OWID_URL = (
     "https://ourworldindata.org/grapher/share-electricity-renewables.csv"
@@ -84,7 +82,7 @@ paises_sm = [
     "Polonia",
 ]
 
-# Mapa nombre en español (usado en el resto del script) -> Entity en OWID (inglés)
+# Mapa
 mapa_paises_owid = {
     "Dinamarca": "Denmark",
     "Suecia": "Sweden",
@@ -103,9 +101,7 @@ resp_owid = requests.get(OWID_URL, headers=HEADERS, timeout=60)
 resp_owid.raise_for_status()
 df_owid_raw = pd.read_csv(io.StringIO(resp_owid.text))
 
-# Las columnas estándar de un CSV "grapher" de OWID son: Entity, Code, Year, <valor>
-# La columna de valor puede llamarse "Renewables - % electricity" o similar según
-# la versión del indicador, así que la localizamos dinámicamente.
+
 cols_fijas = {"Entity", "Code", "Year"}
 col_valor_owid = [c for c in df_owid_raw.columns if c not in cols_fijas][0]
 df_owid_raw = df_owid_raw.rename(columns={col_valor_owid: "Renovable_pct"})
@@ -123,8 +119,7 @@ rows_sm = (
 )
 rows_sm.to_csv("datos_small_multiple.csv", index=False)
 
-# Reconstruimos data_sm en el mismo formato {pais: [valores por year]} que usaba
-# el resto del código, para no tocar la lógica de las gráficas.
+
 data_sm = {}
 for pais in paises_sm:
     serie = rows_sm[rows_sm["Pais"] == pais].set_index("Anio")["Renovable_pct"]
@@ -230,8 +225,6 @@ guardar_html_editorial(fig_sm, "small-multiple.html", "Small Multiple", "sm")
 
 # ==============================================================================
 # 2. TÉCNICA GRUPO II: SLOPE CHART
-# Fuente: Eurostat, tabla "lfsa_ehomp" — Employed persons working from home
-# as a percentage of the total employment, by sex, age and professional status
 # ==============================================================================
 EUROSTAT_URL = (
     "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/lfsa_ehomp/"
@@ -423,8 +416,6 @@ guardar_html_editorial(fig_sc, "slope-chart.html", "Slope Chart", "sc")
 
 # ==============================================================================
 # 3. TÉCNICA GRUPO III: CONNECTED SCATTERPLOT
-# Fuente: World Bank Open Data — SL.UEM.TOTL.ZS (desempleo, % de la fuerza
-# laboral) y FP.CPI.TOTL.ZG (inflación de precios al consumidor, % anual)
 # ==============================================================================
 def descargar_indicador_wb(indicador, pais_iso2="ES", year_ini=2007, year_fin=2024):
     url = (
@@ -500,9 +491,7 @@ segmentos_def = [
     ),
 ]
 
-# Para que las líneas conecten entre etapas (igual que en el original, que
-# solapaba el último año de cada tramo con el primero del siguiente),
-# añadimos el punto de empalme de la etapa previa cuando exista.
+
 etapas_orden = [e[0] for e in segmentos_def]
 for i, (etapa, color_seg, nombre_seg) in enumerate(segmentos_def):
     sub_df = df_cs[df_cs["Etapa"] == etapa].copy()
