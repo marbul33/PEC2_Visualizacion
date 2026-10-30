@@ -48,7 +48,6 @@ def guardar_html_editorial(fig, filename, titulo_pestana, url_activa):
         {plot_html}
     </main>
     <footer>
-        <span>Diseño optimizado para evaluación de carga cognitiva y percepción visual (PEC 2)</span>
         <span>Datos abiertos descargables en el repositorio: <a href="datos_small_multiple.csv">CSV 1</a> · <a href="datos_slope_chart.csv">CSV 2</a> · <a href="datos_connected_scatterplot.csv">CSV 3</a></span>
     </footer>
 </body>
